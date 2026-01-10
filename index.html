@@ -4,8 +4,8 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>CSS Diff Visualizer - Compare CSS Files</title>
-    <meta name="description" content="A modern web tool to visually compare and diff two CSS files. See additions, deletions, and modifications with syntax highlighting.">
+    <title>Text Diff - Compare Text Files</title>
+    <meta name="description" content="A modern web tool to visually compare and diff two text files. See additions, deletions, and modifications with syntax highlighting.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -21,7 +21,7 @@
               <path d="M2 17l10 5 10-5"/>
               <path d="M2 12l10 5 10-5"/>
             </svg>
-            <h1>CSS Diff</h1>
+            <h1>Text Diff</h1>
           </div>
         </div>
         <div class="header-center">
@@ -53,6 +53,22 @@
               <line x1="4" y1="4" x2="9" y2="9"/>
             </svg>
             Compare
+          </button>
+          <button class="theme-toggle" id="themeToggle" title="Toggle theme">
+            <svg class="sun-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="5"/>
+              <line x1="12" y1="1" x2="12" y2="3"/>
+              <line x1="12" y1="21" x2="12" y2="23"/>
+              <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+              <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+              <line x1="1" y1="12" x2="3" y2="12"/>
+              <line x1="21" y1="12" x2="23" y2="12"/>
+              <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+              <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+            </svg>
+            <svg class="moon-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+            </svg>
           </button>
         </div>
       </header>
@@ -139,76 +155,35 @@
 
         <!-- Diff Section -->
         <section class="diff-section hidden" id="diffSection">
-          <!-- Stats Bar -->
+          <!-- Top Stats Bar -->
           <div class="stats-bar" id="statsBar">
-            <div class="stat-item added">
-              <span class="stat-icon">+</span>
-              <span class="stat-value" id="addedCount">0</span>
-              <span class="stat-label">Added</span>
-            </div>
-            <div class="stat-item removed">
-              <span class="stat-icon">−</span>
-              <span class="stat-value" id="removedCount">0</span>
-              <span class="stat-label">Removed</span>
-            </div>
-            <div class="stat-item modified">
-              <span class="stat-icon">~</span>
-              <span class="stat-value" id="modifiedCount">0</span>
-              <span class="stat-label">Modified</span>
-            </div>
-            <div class="stat-divider"></div>
-            
-            <!-- Navigation Buttons -->
-            <div class="nav-controls">
-              <button class="nav-btn" id="prevDiffBtn" title="Previous difference (↑ or k)">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <polyline points="18 15 12 9 6 15"/>
-                </svg>
-                Prev
-              </button>
-              <span class="nav-indicator">
-                <span id="currentDiffIndex">0</span>
-                <span>/</span>
-                <span id="totalDiffs">0</span>
-              </span>
-              <button class="nav-btn" id="nextDiffBtn" title="Next difference (↓ or j)">
-                Next
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <polyline points="6 9 12 15 18 9"/>
-                </svg>
-              </button>
+            <div class="stats-left">
+              <div class="stat-item added">
+                <span class="stat-icon">+</span>
+                <span class="stat-value" id="addedCount">0</span>
+                <span class="stat-label">Added</span>
+              </div>
+              <div class="stat-item removed">
+                <span class="stat-icon">−</span>
+                <span class="stat-value" id="removedCount">0</span>
+                <span class="stat-label">Removed</span>
+              </div>
+              <div class="stat-item modified">
+                <span class="stat-icon">~</span>
+                <span class="stat-value" id="modifiedCount">0</span>
+                <span class="stat-label">Modified</span>
+              </div>
             </div>
             
-            <!-- Group Navigation -->
-            <div class="nav-controls group-nav">
-              <button class="nav-btn nav-btn-group" id="prevGroupBtn" title="Previous group (Shift+↑ or K)">
+            <div class="stats-right">
+              <button class="btn-back" id="backBtn">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <polyline points="18 18 12 12 6 18"/>
-                  <polyline points="18 12 12 6 6 12"/>
+                  <line x1="19" y1="12" x2="5" y2="12"/>
+                  <polyline points="12 19 5 12 12 5"/>
                 </svg>
-                Prev Group
-              </button>
-              <span class="nav-indicator">
-                <span id="currentGroupIndex">0</span>
-                <span>/</span>
-                <span id="totalGroups">0</span>
-              </span>
-              <button class="nav-btn nav-btn-group" id="nextGroupBtn" title="Next group (Shift+↓ or J)">
-                Next Group
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <polyline points="6 6 12 12 18 6"/>
-                  <polyline points="6 12 12 18 18 12"/>
-                </svg>
+                Back to Editor
               </button>
             </div>
-            
-            <button class="btn-back" id="backBtn">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="19" y1="12" x2="5" y2="12"/>
-                <polyline points="12 19 5 12 12 5"/>
-              </svg>
-              Back to Editor
-            </button>
           </div>
 
           <!-- Diff View -->
@@ -231,8 +206,163 @@
               <div class="unified-content" id="unifiedContent"></div>
             </div>
           </div>
+          
+          <!-- Bottom Action Bar -->
+          <div class="action-bar" id="actionBar">
+            <!-- Navigation Controls -->
+            <div class="action-bar-section nav-section">
+              <span class="section-label">Navigate</span>
+              <div class="nav-controls">
+                <button class="nav-btn" id="prevDiffBtn" title="Previous difference (↑ or k)">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="18 15 12 9 6 15"/>
+                  </svg>
+                </button>
+                <span class="nav-indicator">
+                  <span id="currentDiffIndex">0</span>
+                  <span>/</span>
+                  <span id="totalDiffs">0</span>
+                </span>
+                <button class="nav-btn" id="nextDiffBtn" title="Next difference (↓ or j)">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="6 9 12 15 18 9"/>
+                  </svg>
+                </button>
+              </div>
+              
+              <div class="nav-controls group-nav">
+                <button class="nav-btn nav-btn-group" id="prevGroupBtn" title="Previous group (Shift+↑ or K)">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="18 18 12 12 6 18"/>
+                    <polyline points="18 12 12 6 6 12"/>
+                  </svg>
+                </button>
+                <span class="nav-indicator">
+                  <span id="currentGroupIndex">0</span>
+                  <span>/</span>
+                  <span id="totalGroups">0</span>
+                  <span class="nav-label">groups</span>
+                </span>
+                <button class="nav-btn nav-btn-group" id="nextGroupBtn" title="Next group (Shift+↓ or J)">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="6 6 12 12 18 6"/>
+                    <polyline points="6 12 12 18 18 12"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+            
+            <div class="action-bar-divider"></div>
+            
+            <!-- Merge Controls -->
+            <div class="action-bar-section merge-section">
+              <span class="section-label">Merge</span>
+              <span class="merge-stats" id="mergeStats">0/0 resolved</span>
+              <div class="merge-actions">
+                <button class="merge-action-btn" id="previewMergeBtn" title="Preview merged result (P)">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                    <circle cx="12" cy="12" r="3"/>
+                  </svg>
+                  <span>Preview</span>
+                </button>
+                <button class="merge-action-btn" id="copyMergeBtn" title="Copy merged CSS (C)">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                  </svg>
+                  <span>Copy</span>
+                </button>
+                <button class="merge-action-btn merge-action-btn-primary" id="exportMergeBtn" title="Download merged CSS (E)">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="7 10 12 15 17 10"/>
+                    <line x1="12" y1="15" x2="12" y2="3"/>
+                  </svg>
+                  <span>Export</span>
+                </button>
+              </div>
+            </div>
+          </div>
         </section>
       </main>
+      
+      <!-- Merge Preview Modal -->
+      <div class="merge-preview-modal hidden" id="mergePreviewModal">
+        <div class="merge-preview-content">
+          <div class="merge-preview-header">
+            <h2>Merged CSS Preview</h2>
+            <button class="merge-preview-close" id="closePreviewBtn" title="Close">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="6" x2="6" y2="18"/>
+                <line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            </button>
+          </div>
+          <div class="merge-preview-body">
+            <pre class="merge-preview-code" id="mergePreviewContent"></pre>
+          </div>
+          <div class="merge-preview-footer">
+            <button class="merge-action-btn" id="copyPreviewBtn" onclick="document.getElementById('copyMergeBtn').click()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+              </svg>
+              Copy to Clipboard
+            </button>
+            <button class="merge-action-btn merge-action-btn-primary" onclick="document.getElementById('exportMergeBtn').click()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+              Download CSS
+            </button>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Merge Popup -->
+      <div class="merge-popup hidden" id="mergePopup">
+        <div class="merge-popup-container">
+          <div class="merge-popup-header">
+            <span class="merge-popup-title" id="mergePopupTitle">Resolve Change</span>
+            <span class="merge-popup-group" id="mergeGroupNumber">Change 1 of 5</span>
+            <button class="merge-popup-close" id="closeMergePopupBtn" title="Close (Esc)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="6" x2="6" y2="18"/>
+                <line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            </button>
+          </div>
+          
+          <div class="merge-popup-body">
+            <div class="merge-popup-hint" id="mergePopupHint">Click on a change in the diff view to resolve it</div>
+            
+            <div class="merge-popup-versions" id="mergePopupVersions">
+              <div class="merge-version merge-version-original" id="mergeVersionOriginal">
+                <div class="merge-version-header">
+                  <span class="merge-version-label" id="mergeOriginalLabel">Original</span>
+                  <span class="merge-version-shortcut">Press 1</span>
+                </div>
+                <pre class="merge-version-code" id="mergeOriginalContent"></pre>
+              </div>
+              
+              <div class="merge-version merge-version-modified" id="mergeVersionModified">
+                <div class="merge-version-header">
+                  <span class="merge-version-label" id="mergeModifiedLabel">Modified</span>
+                  <span class="merge-version-shortcut">Press 2</span>
+                </div>
+                <pre class="merge-version-code" id="mergeModifiedContent"></pre>
+              </div>
+            </div>
+          </div>
+          
+          <div class="merge-popup-actions" id="mergePopupActions">
+            <!-- Actions will be dynamically populated based on change type -->
+          </div>
+        </div>
+      </div>
     </div>
     <script type="module" src="/src/main.js"></script>
   </body>

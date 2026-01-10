@@ -1,9 +1,9 @@
 /**
- * CSS Diff Visualizer - Main Application
+ * Text Diff - Main Application
  */
 
 import './style.css';
-import { computeDiff, generateSplitDiff, generateUnifiedDiff, findInlineDiff } from './diff-engine.js';
+import { computeDiff, generateSplitDiff, generateUnifiedDiff, findInlineDiff, findInlineDiffWords } from './diff-engine.js';
 import { highlightLine as highlightCSS } from './syntax-highlighter.js';
 import { sampleOriginal, sampleModified } from './sample-data.js';
 
@@ -30,6 +30,7 @@ const loadSampleLeft = document.getElementById('loadSampleLeft');
 const loadSampleRight = document.getElementById('loadSampleRight');
 const clearLeft = document.getElementById('clearLeft');
 const clearRight = document.getElementById('clearRight');
+const themeToggle = document.getElementById('themeToggle');
 
 // Line navigation elements
 const prevDiffBtn = document.getElementById('prevDiffBtn');
@@ -52,15 +53,45 @@ let diffIndices = []; // Indices of individual diff lines
 let currentDiffPosition = -1;
 
 // Group navigation state
-let diffGroups = []; // Array of groups, each group is { startIndex, endIndex, lines: [...] }
+let diffGroups = []; // Array of groups, each group is { startIndex, endIndex, lines: [...], id: number }
 let currentGroupPosition = -1;
+
+// Merge state - now group-based
+let mergeDecisions = new Map(); // Map of groupId -> 'original' | 'modified' | 'both'
+let activeGroupId = null; // Currently selected group for merge popup
 
 /**
  * Initialize the application
  */
 function init() {
+  initTheme();
   setupEventListeners();
   setupDragAndDrop();
+}
+
+/**
+ * Initialize theme from localStorage or default to light
+ */
+function initTheme() {
+  const savedTheme = localStorage.getItem('theme');
+  // Light mode is default (no data-theme attribute needed)
+  if (savedTheme === 'dark') {
+    document.documentElement.setAttribute('data-theme', 'dark');
+  }
+}
+
+/**
+ * Toggle between light and dark theme
+ */
+function toggleTheme() {
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  if (isDark) {
+    document.documentElement.removeAttribute('data-theme');
+    localStorage.setItem('theme', 'light');
+  } else {
+    document.documentElement.setAttribute('data-theme', 'dark');
+    localStorage.setItem('theme', 'dark');
+  }
 }
 
 /**
@@ -72,6 +103,9 @@ function setupEventListeners() {
   
   // Back button
   backBtn.addEventListener('click', showInput);
+  
+  // Theme toggle
+  themeToggle.addEventListener('click', toggleTheme);
   
   // View toggle
   viewBtns.forEach(btn => {
@@ -111,6 +145,42 @@ function setupEventListeners() {
   prevGroupBtn.addEventListener('click', () => navigateGroup(-1));
   nextGroupBtn.addEventListener('click', () => navigateGroup(1));
   
+  // Merge action buttons (use event delegation)
+  document.addEventListener('click', (e) => {
+    // Export merge button
+    if (e.target.closest('#exportMergeBtn')) {
+      exportMergedCSS();
+    }
+    // Copy merge button
+    if (e.target.closest('#copyMergeBtn')) {
+      copyMergedCSS();
+    }
+    // Preview merge button
+    if (e.target.closest('#previewMergeBtn')) {
+      previewMergedCSS();
+    }
+    // Close preview modal
+    if (e.target.closest('#closePreviewBtn') || e.target.id === 'mergePreviewModal') {
+      closeMergePreview();
+    }
+    // Close merge popup when clicking backdrop
+    if (e.target.id === 'mergePopup') {
+      closeMergePopup();
+    }
+    // Close merge popup button
+    if (e.target.closest('#closeMergePopupBtn')) {
+      closeMergePopup();
+    }
+    // Merge popup action buttons
+    if (e.target.closest('.merge-popup-action')) {
+      const btn = e.target.closest('.merge-popup-action');
+      const action = btn.dataset.action;
+      if (action && activeGroupId !== null) {
+        applyMergeDecision(activeGroupId, action);
+      }
+    }
+  });
+  
   // Keyboard shortcuts
   document.addEventListener('keydown', (e) => {
     // Ctrl/Cmd + Enter to compare
@@ -119,13 +189,25 @@ function setupEventListeners() {
       handleCompare();
     }
     
-    // Escape to go back
-    if (e.key === 'Escape' && !diffSection.classList.contains('hidden')) {
-      showInput();
+    // Escape to close modals or go back
+    if (e.key === 'Escape') {
+      const mergePopup = document.getElementById('mergePopup');
+      const previewModal = document.getElementById('mergePreviewModal');
+      
+      if (mergePopup && !mergePopup.classList.contains('hidden')) {
+        closeMergePopup();
+      } else if (previewModal && !previewModal.classList.contains('hidden')) {
+        closeMergePreview();
+      } else if (!diffSection.classList.contains('hidden')) {
+        showInput();
+      }
     }
     
-    // Navigation in diff view
-    if (!diffSection.classList.contains('hidden')) {
+    // Navigation in diff view (only when no popup is open)
+    const mergePopup = document.getElementById('mergePopup');
+    const popupOpen = mergePopup && !mergePopup.classList.contains('hidden');
+    
+    if (!diffSection.classList.contains('hidden') && !popupOpen) {
       // Line navigation: arrow keys or j/k
       if (e.key === 'ArrowUp' || e.key === 'k') {
         e.preventDefault();
@@ -145,13 +227,52 @@ function setupEventListeners() {
         e.preventDefault();
         navigateGroup(1);
       }
-      if (e.key === 'K') { // Uppercase K
+      if (e.key === 'K') {
         e.preventDefault();
         navigateGroup(-1);
       }
-      if (e.key === 'J') { // Uppercase J
+      if (e.key === 'J') {
         e.preventDefault();
         navigateGroup(1);
+      }
+      
+      // Enter to open merge popup for current group
+      if (e.key === 'Enter' && currentGroupPosition >= 0) {
+        e.preventDefault();
+        openMergePopup(currentGroupPosition);
+      }
+    }
+    
+    // Keyboard shortcuts in merge popup
+    if (popupOpen && activeGroupId !== null) {
+      const changeType = mergePopup.dataset.changeType;
+      
+      if (e.key === '1') {
+        e.preventDefault();
+        // Key 1: first action based on change type
+        if (changeType === 'added') {
+          applyMergeDecision(activeGroupId, 'keep');
+        } else if (changeType === 'removed') {
+          applyMergeDecision(activeGroupId, 'restore');
+        } else {
+          applyMergeDecision(activeGroupId, 'original');
+        }
+      }
+      if (e.key === '2') {
+        e.preventDefault();
+        // Key 2: second action based on change type
+        if (changeType === 'added') {
+          applyMergeDecision(activeGroupId, 'discard');
+        } else if (changeType === 'removed') {
+          applyMergeDecision(activeGroupId, 'accept');
+        } else {
+          applyMergeDecision(activeGroupId, 'modified');
+        }
+      }
+      if (e.key === '3' && changeType === 'modified') {
+        e.preventDefault();
+        // Key 3: only for modified (keep both)
+        applyMergeDecision(activeGroupId, 'both');
       }
     }
   });
@@ -222,6 +343,10 @@ function handleCompare() {
   // Compute diff
   diffResult = computeDiff(original, modified);
   
+  // Reset merge state
+  mergeDecisions = new Map();
+  activeGroupId = null;
+  
   // Update statistics
   updateStats(diffResult.stats);
   
@@ -245,12 +370,17 @@ function buildDiffIndices() {
   currentDiffPosition = -1;
   
   const container = currentView === 'split' ? diffLeft : unifiedContent;
+  const rightContainer = currentView === 'split' ? diffRight : null;
   const lines = container.querySelectorAll('.diff-line');
+  const rightLines = rightContainer ? rightContainer.querySelectorAll('.diff-line') : null;
   
   lines.forEach((line, index) => {
-    if (line.classList.contains('added') || 
-        line.classList.contains('removed') || 
-        line.classList.contains('modified')) {
+    // Check both left and right panes for diff type
+    const leftIsDiff = line.classList.contains('removed') || line.classList.contains('modified');
+    const rightIsDiff = rightLines && rightLines[index] && 
+                        (rightLines[index].classList.contains('added') || rightLines[index].classList.contains('modified'));
+    
+    if (leftIsDiff || rightIsDiff) {
       diffIndices.push(index);
     }
   });
@@ -264,31 +394,69 @@ function buildDiffIndices() {
 }
 
 /**
- * Build groups of continuous differences
- * A group is a set of consecutive diff lines
+ * Build groups of related differences
+ * Groups consecutive diff lines of the SAME TYPE only
+ * Different change types (added/removed/modified) are kept in separate groups
  */
 function buildDiffGroups() {
   diffGroups = [];
   currentGroupPosition = -1;
   
+  const { left, right } = generateSplitDiff(diffResult.diff);
   const container = currentView === 'split' ? diffLeft : unifiedContent;
+  const rightContainer = currentView === 'split' ? diffRight : null;
   const lines = container.querySelectorAll('.diff-line');
+  const rightLines = rightContainer ? rightContainer.querySelectorAll('.diff-line') : null;
   
   let currentGroup = null;
+  let groupId = 0;
   
   lines.forEach((line, index) => {
-    const isDiff = line.classList.contains('added') || 
-                   line.classList.contains('removed') || 
-                   line.classList.contains('modified');
+    // Check both left and right panes for diff type
+    // Left pane has: removed, modified, empty (for added), unchanged
+    // Right pane has: added, modified, empty (for removed), unchanged
+    const leftIsDiff = line.classList.contains('removed') || line.classList.contains('modified');
+    const rightIsDiff = rightLines && rightLines[index] && 
+                        (rightLines[index].classList.contains('added') || rightLines[index].classList.contains('modified'));
+    const isDiff = leftIsDiff || rightIsDiff;
     
-    if (isDiff) {
+    // Determine the actual diff type
+    let diffType = null;
+    if (line.classList.contains('removed')) {
+      diffType = 'removed';
+    } else if (line.classList.contains('modified')) {
+      diffType = 'modified';
+    } else if (rightLines && rightLines[index] && rightLines[index].classList.contains('added')) {
+      diffType = 'added';
+    }
+    
+    if (isDiff && diffType) {
       if (currentGroup === null) {
         // Start a new group
-        currentGroup = { startIndex: index, endIndex: index, lines: [index] };
-      } else {
-        // Extend current group
-        currentGroup.endIndex = index;
+        currentGroup = { 
+          id: groupId++, 
+          startIndex: index, 
+          endIndex: index, 
+          lines: [index],
+          diffIndices: [index],
+          type: diffType // Single type per group
+        };
+      } else if (currentGroup.type === diffType) {
+        // Same type - extend the group
         currentGroup.lines.push(index);
+        currentGroup.diffIndices.push(index);
+        currentGroup.endIndex = index;
+      } else {
+        // Different type - close current group and start new one
+        diffGroups.push(currentGroup);
+        currentGroup = { 
+          id: groupId++, 
+          startIndex: index, 
+          endIndex: index, 
+          lines: [index],
+          diffIndices: [index],
+          type: diffType
+        };
       }
     } else {
       // Non-diff line - close current group if exists
@@ -310,6 +478,12 @@ function buildDiffGroups() {
   
   // Update button states
   updateGroupNavigationButtons();
+  
+  // Make groups clickable
+  setupClickableGroups();
+  
+  // Update merge stats
+  updateMergeStats();
 }
 
 /**
@@ -488,48 +662,546 @@ function renderSplitView(diff) {
   const { left, right, gutter } = generateSplitDiff(diff);
   
   // Render left pane
-  diffLeft.innerHTML = left.map(item => {
+  diffLeft.innerHTML = left.map((item, index) => {
     const lineNum = item.lineNumber !== null ? item.lineNumber : '';
     let content = item.content;
     
     if (item.type === 'modified' && item.originalContent !== undefined) {
-      const inlineDiff = findInlineDiff(item.originalContent, item.newContent);
+      // Use word-level diff for better readability
+      const inlineDiff = findInlineDiffWords(item.originalContent, item.newContent);
       content = renderInlineDiff(inlineDiff.oldResult, 'removed');
     } else if (item.type !== 'empty') {
       content = highlightCSS(item.content);
     }
     
-    return `<div class="diff-line ${item.type}">
+    return `<div class="diff-line ${item.type}" data-diff-index="${index}">
       <span class="line-number">${lineNum}</span>
       <span class="line-content">${content}</span>
     </div>`;
   }).join('');
   
   // Render right pane
-  diffRight.innerHTML = right.map(item => {
+  diffRight.innerHTML = right.map((item, index) => {
     const lineNum = item.lineNumber !== null ? item.lineNumber : '';
     let content = item.content;
     
     if (item.type === 'modified' && item.originalContent !== undefined) {
-      const inlineDiff = findInlineDiff(item.originalContent, item.newContent);
+      // Use word-level diff for better readability
+      const inlineDiff = findInlineDiffWords(item.originalContent, item.newContent);
       content = renderInlineDiff(inlineDiff.newResult, 'added');
     } else if (item.type !== 'empty') {
       content = highlightCSS(item.content);
     }
     
-    return `<div class="diff-line ${item.type}">
+    return `<div class="diff-line ${item.type}" data-diff-index="${index}">
       <span class="line-number">${lineNum}</span>
       <span class="line-content">${content}</span>
     </div>`;
   }).join('');
   
-  // Render gutter
-  diffGutter.innerHTML = '<div style="height: 29px;"></div>' + gutter.map(item => {
-    return `<div class="gutter-item ${item.type}">${item.symbol}</div>`;
+  // Render gutter (simple, no inline merge controls)
+  diffGutter.innerHTML = '<div class="gutter-header"></div>' + gutter.map((item, index) => {
+    return `<div class="gutter-item ${item.type}" data-diff-index="${index}">${item.symbol}</div>`;
   }).join('');
   
   // Sync scrolling
   syncScroll(diffLeft, diffRight, diffGutter);
+}
+
+/**
+ * Setup clickable groups for merge functionality
+ */
+function setupClickableGroups() {
+  // Add group data attributes and click handlers to diff lines
+  diffGroups.forEach((group, groupIndex) => {
+    group.lines.forEach(lineIndex => {
+      const leftLine = diffLeft.querySelector(`.diff-line[data-diff-index="${lineIndex}"]`);
+      const rightLine = diffRight.querySelector(`.diff-line[data-diff-index="${lineIndex}"]`);
+      const gutterItem = diffGutter.querySelector(`.gutter-item[data-diff-index="${lineIndex}"]`);
+      
+      [leftLine, rightLine, gutterItem].forEach(el => {
+        if (el) {
+          el.dataset.groupId = group.id;
+          el.classList.add('merge-clickable');
+          el.addEventListener('click', () => openMergePopup(groupIndex));
+        }
+      });
+    });
+  });
+  
+  // Apply existing merge decisions
+  diffGroups.forEach(group => {
+    const decision = mergeDecisions.get(group.id);
+    if (decision) {
+      applyGroupDecisionUI(group.id, decision);
+    }
+  });
+}
+
+/**
+ * Open merge popup for a group
+ * @param {number} groupIndex - Index of the group in diffGroups array
+ */
+function openMergePopup(groupIndex) {
+  const group = diffGroups[groupIndex];
+  if (!group) return;
+  
+  activeGroupId = group.id;
+  currentGroupPosition = groupIndex;
+  
+  // Update group indicator
+  currentGroupIndex.textContent = groupIndex + 1;
+  
+  // Highlight the group
+  clearHighlights();
+  group.lines.forEach((lineIndex, i) => {
+    highlightLine(lineIndex, 'current-group', i > 0);
+  });
+  
+  // Get the content for this group and determine change type
+  const { left, right } = generateSplitDiff(diffResult.diff);
+  const originalLines = [];
+  const modifiedLines = [];
+  let changeType = null; // 'added', 'removed', or 'modified'
+  
+  group.diffIndices.forEach(lineIndex => {
+    const leftItem = left[lineIndex];
+    const rightItem = right[lineIndex];
+    
+    if (leftItem.type === 'removed') {
+      originalLines.push(leftItem.content);
+      if (!changeType) changeType = 'removed';
+    } else if (leftItem.type === 'modified') {
+      originalLines.push(leftItem.content);
+      if (!changeType || changeType !== 'modified') changeType = 'modified';
+    }
+    
+    if (rightItem.type === 'added') {
+      modifiedLines.push(rightItem.content);
+      if (!changeType) changeType = 'added';
+    } else if (rightItem.type === 'modified') {
+      modifiedLines.push(rightItem.content);
+      if (!changeType || changeType !== 'modified') changeType = 'modified';
+    }
+  });
+  
+  // If we have both removed and added in the same group, treat as modified
+  if (originalLines.length > 0 && modifiedLines.length > 0 && changeType !== 'modified') {
+    changeType = 'modified';
+  }
+  
+  // Generate highlighted content for the popup
+  const generateHighlightedContent = (lines, type, compareLines = null) => {
+    return lines.map((line, i) => {
+      if (compareLines && compareLines[i] !== undefined) {
+        // For modified lines, show inline diff
+        const inlineDiff = findInlineDiffWords(
+          type === 'original' ? line : compareLines[i],
+          type === 'original' ? compareLines[i] : line
+        );
+        const result = type === 'original' ? inlineDiff.oldResult : inlineDiff.newResult;
+        const highlightClass = type === 'original' ? 'removed' : 'added';
+        return result.map(part => {
+          if (part.changed) {
+            return `<span class="highlight-${highlightClass}">${escapeHtml(part.text)}</span>`;
+          }
+          return escapeHtml(part.text);
+        }).join('');
+      } else {
+        // For added/removed only lines, just apply syntax highlighting
+        return highlightCSS(line);
+      }
+    }).join('\n');
+  };
+  
+  // Populate and show the popup
+  const popup = document.getElementById('mergePopup');
+  const popupTitle = document.getElementById('mergePopupTitle');
+  const popupHint = document.getElementById('mergePopupHint');
+  const originalContent = document.getElementById('mergeOriginalContent');
+  const modifiedContent = document.getElementById('mergeModifiedContent');
+  const originalLabel = document.getElementById('mergeOriginalLabel');
+  const modifiedLabel = document.getElementById('mergeModifiedLabel');
+  const versionOriginal = document.getElementById('mergeVersionOriginal');
+  const versionModified = document.getElementById('mergeVersionModified');
+  const versionsContainer = document.getElementById('mergePopupVersions');
+  const actionsContainer = document.getElementById('mergePopupActions');
+  const groupNumber = document.getElementById('mergeGroupNumber');
+  
+  if (!popup) return;
+  
+  // Set group number
+  groupNumber.textContent = `Change ${groupIndex + 1} of ${diffGroups.length}`;
+  
+  // Configure popup based on change type
+  const currentDecision = mergeDecisions.get(group.id);
+  
+  if (changeType === 'added') {
+    // Lines only exist in modified version
+    popupTitle.textContent = 'New Lines Added';
+    popupHint.textContent = 'These lines were added in the modified version. Keep or discard?';
+    
+    versionOriginal.classList.add('hidden');
+    versionModified.classList.remove('hidden');
+    versionsContainer.classList.add('single-version');
+    
+    modifiedLabel.textContent = 'Added Lines';
+    modifiedContent.innerHTML = generateHighlightedContent(modifiedLines, 'added');
+    
+    actionsContainer.innerHTML = `
+      <button class="merge-popup-action merge-popup-action-keep ${currentDecision === 'keep' ? 'active' : ''}" data-action="keep">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="20 6 9 17 4 12"/>
+        </svg>
+        <span>Keep Added Lines</span>
+        <kbd>1</kbd>
+      </button>
+      <button class="merge-popup-action merge-popup-action-discard ${currentDecision === 'discard' ? 'active' : ''}" data-action="discard">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="6" x2="6" y2="18"/>
+          <line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+        <span>Discard Added Lines</span>
+        <kbd>2</kbd>
+      </button>
+    `;
+  } else if (changeType === 'removed') {
+    // Lines only exist in original version
+    popupTitle.textContent = 'Lines Removed';
+    popupHint.textContent = 'These lines were removed in the modified version. Restore or accept removal?';
+    
+    versionOriginal.classList.remove('hidden');
+    versionModified.classList.add('hidden');
+    versionsContainer.classList.add('single-version');
+    
+    originalLabel.textContent = 'Removed Lines';
+    originalContent.innerHTML = generateHighlightedContent(originalLines, 'removed');
+    
+    actionsContainer.innerHTML = `
+      <button class="merge-popup-action merge-popup-action-restore ${currentDecision === 'restore' ? 'active' : ''}" data-action="restore">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="1 4 1 10 7 10"/>
+          <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+        </svg>
+        <span>Restore Removed Lines</span>
+        <kbd>1</kbd>
+      </button>
+      <button class="merge-popup-action merge-popup-action-accept ${currentDecision === 'accept' ? 'active' : ''}" data-action="accept">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="3 6 5 6 21 6"/>
+          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+        </svg>
+        <span>Accept Removal</span>
+        <kbd>2</kbd>
+      </button>
+    `;
+  } else {
+    // Modified lines (exist in both but different)
+    popupTitle.textContent = 'Lines Modified';
+    popupHint.textContent = 'These lines were changed. Choose which version to keep.';
+    
+    versionOriginal.classList.remove('hidden');
+    versionModified.classList.remove('hidden');
+    versionsContainer.classList.remove('single-version');
+    
+    originalLabel.textContent = 'Original';
+    modifiedLabel.textContent = 'Modified';
+    
+    // Generate highlighted content with inline diffs
+    const originalHighlighted = generateHighlightedContent(originalLines, 'original', modifiedLines);
+    const modifiedHighlighted = generateHighlightedContent(modifiedLines, 'modified', originalLines);
+    
+    originalContent.innerHTML = originalHighlighted || '<span class="text-muted">(empty)</span>';
+    modifiedContent.innerHTML = modifiedHighlighted || '<span class="text-muted">(empty)</span>';
+    
+    actionsContainer.innerHTML = `
+      <button class="merge-popup-action merge-popup-action-original ${currentDecision === 'original' ? 'active' : ''}" data-action="original">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="15 18 9 12 15 6"/>
+        </svg>
+        <span>Use Original</span>
+        <kbd>1</kbd>
+      </button>
+      <button class="merge-popup-action merge-popup-action-modified ${currentDecision === 'modified' ? 'active' : ''}" data-action="modified">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="9 18 15 12 9 6"/>
+        </svg>
+        <span>Use Modified</span>
+        <kbd>2</kbd>
+      </button>
+      <button class="merge-popup-action merge-popup-action-both ${currentDecision === 'both' ? 'active' : ''}" data-action="both">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="12" y1="5" x2="12" y2="19"/>
+          <line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+        <span>Keep Both</span>
+        <kbd>3</kbd>
+      </button>
+    `;
+  }
+  
+  // Store change type for keyboard handling
+  popup.dataset.changeType = changeType;
+  
+  popup.classList.remove('hidden');
+}
+
+/**
+ * Close merge popup
+ */
+function closeMergePopup() {
+  const popup = document.getElementById('mergePopup');
+  if (popup) {
+    popup.classList.add('hidden');
+  }
+  activeGroupId = null;
+}
+
+/**
+ * Apply merge decision for a group
+ * @param {number} groupId - Group ID
+ * @param {string} action - 'original', 'modified', or 'both'
+ */
+function applyMergeDecision(groupId, action) {
+  // Toggle if same action
+  const currentDecision = mergeDecisions.get(groupId);
+  if (currentDecision === action) {
+    mergeDecisions.delete(groupId);
+  } else {
+    mergeDecisions.set(groupId, action);
+  }
+  
+  // Update UI
+  applyGroupDecisionUI(groupId, mergeDecisions.get(groupId));
+  updateMergeStats();
+  
+  // Update popup buttons
+  const popup = document.getElementById('mergePopup');
+  if (popup && !popup.classList.contains('hidden')) {
+    popup.querySelectorAll('.merge-popup-action').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.action === mergeDecisions.get(groupId));
+    });
+  }
+  
+  // Auto-advance to next unresolved group
+  const nextUnresolved = findNextUnresolvedGroup(groupId);
+  if (nextUnresolved !== null) {
+    setTimeout(() => openMergePopup(nextUnresolved), 300);
+  } else {
+    closeMergePopup();
+  }
+}
+
+/**
+ * Find next unresolved group
+ * @param {number} currentGroupId - Current group ID
+ * @returns {number|null} - Index of next unresolved group, or null
+ */
+function findNextUnresolvedGroup(currentGroupId) {
+  const currentIndex = diffGroups.findIndex(g => g.id === currentGroupId);
+  
+  // Look for next unresolved group after current
+  for (let i = currentIndex + 1; i < diffGroups.length; i++) {
+    if (!mergeDecisions.has(diffGroups[i].id)) {
+      return i;
+    }
+  }
+  
+  // Look from beginning
+  for (let i = 0; i < currentIndex; i++) {
+    if (!mergeDecisions.has(diffGroups[i].id)) {
+      return i;
+    }
+  }
+  
+  return null;
+}
+
+/**
+ * Apply group decision UI styling
+ * @param {number} groupId - Group ID
+ * @param {string|undefined} decision - Decision or undefined if cleared
+ */
+function applyGroupDecisionUI(groupId, decision) {
+  const group = diffGroups.find(g => g.id === groupId);
+  if (!group) return;
+  
+  // All possible decision classes
+  const decisionClasses = [
+    'merge-resolved',
+    'merge-decision-original',
+    'merge-decision-modified',
+    'merge-decision-both',
+    'merge-decision-keep',
+    'merge-decision-discard',
+    'merge-decision-restore',
+    'merge-decision-accept'
+  ];
+  
+  group.lines.forEach(lineIndex => {
+    const leftLine = diffLeft.querySelector(`.diff-line[data-diff-index="${lineIndex}"]`);
+    const rightLine = diffRight.querySelector(`.diff-line[data-diff-index="${lineIndex}"]`);
+    
+    [leftLine, rightLine].forEach(line => {
+      if (line) {
+        line.classList.remove(...decisionClasses);
+        if (decision) {
+          line.classList.add('merge-resolved', `merge-decision-${decision}`);
+        }
+      }
+    });
+  });
+}
+
+/**
+ * Update merge statistics display
+ */
+function updateMergeStats() {
+  const mergeStatsEl = document.getElementById('mergeStats');
+  if (mergeStatsEl) {
+    const total = diffGroups.length;
+    const resolved = mergeDecisions.size;
+    mergeStatsEl.textContent = `${resolved}/${total} resolved`;
+    
+    // Update export button state
+    const exportBtn = document.getElementById('exportMergeBtn');
+    if (exportBtn) {
+      exportBtn.disabled = false; // Always allow export with defaults
+    }
+  }
+}
+
+/**
+ * Get group ID for a diff line index
+ * @param {number} lineIndex - Line index
+ * @returns {number|null} - Group ID or null
+ */
+function getGroupIdForLine(lineIndex) {
+  for (const group of diffGroups) {
+    if (group.lines.includes(lineIndex)) {
+      return group.id;
+    }
+  }
+  return null;
+}
+
+/**
+ * Generate merged CSS result
+ * @returns {string} - Merged CSS content
+ */
+function generateMergedCSS() {
+  if (!diffResult) return '';
+  
+  const { left, right } = generateSplitDiff(diffResult.diff);
+  const lines = [];
+  
+  for (let i = 0; i < left.length; i++) {
+    const leftItem = left[i];
+    const rightItem = right[i];
+    const groupId = getGroupIdForLine(i);
+    const decision = groupId !== null ? mergeDecisions.get(groupId) : null;
+    
+    if (leftItem.type === 'unchanged') {
+      // Unchanged lines always go in
+      lines.push(leftItem.content);
+    } else if (leftItem.type === 'removed') {
+      // Line only exists in original (was removed)
+      // Decision options: 'restore' (keep original), 'accept' (accept removal)
+      // Also handle legacy: 'original' (same as restore), 'both' (include it)
+      if (decision === 'restore' || decision === 'original' || decision === 'both') {
+        lines.push(leftItem.content);
+      }
+      // Default (no decision or 'accept'): skip removed lines (accept deletion)
+    } else if (leftItem.type === 'empty' && rightItem.type === 'added') {
+      // Line only exists in modified (was added)
+      // Decision options: 'keep' (keep added), 'discard' (remove added)
+      // Also handle legacy: 'modified' (same as keep), 'original' (same as discard)
+      if (decision === 'discard' || decision === 'original') {
+        // Skip - user chose to discard the new line
+      } else {
+        // Default or 'keep' or 'modified' or 'both': include the new line
+        lines.push(rightItem.content);
+      }
+    } else if (leftItem.type === 'modified') {
+      // Line was modified (exists in both but different)
+      // Decision options: 'original', 'modified', 'both'
+      if (decision === 'original') {
+        lines.push(leftItem.content);
+      } else if (decision === 'both') {
+        lines.push(leftItem.content);
+        lines.push(rightItem.content);
+      } else {
+        // Default to new version for modifications
+        lines.push(rightItem.content);
+      }
+    }
+  }
+  
+  return lines.join('\n');
+}
+
+/**
+ * Export merged CSS
+ */
+function exportMergedCSS() {
+  const mergedCSS = generateMergedCSS();
+  
+  // Create blob and download
+  const blob = new Blob([mergedCSS], { type: 'text/css' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'merged.css';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+/**
+ * Copy merged CSS to clipboard
+ */
+async function copyMergedCSS() {
+  const mergedCSS = generateMergedCSS();
+  
+  try {
+    await navigator.clipboard.writeText(mergedCSS);
+    // Show feedback
+    const copyBtn = document.getElementById('copyMergeBtn');
+    if (copyBtn) {
+      const originalText = copyBtn.innerHTML;
+      copyBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Copied!';
+      setTimeout(() => {
+        copyBtn.innerHTML = originalText;
+      }, 2000);
+    }
+  } catch (err) {
+    console.error('Failed to copy:', err);
+  }
+}
+
+/**
+ * Preview merged CSS in a modal
+ */
+function previewMergedCSS() {
+  const mergedCSS = generateMergedCSS();
+  const modal = document.getElementById('mergePreviewModal');
+  const previewContent = document.getElementById('mergePreviewContent');
+  
+  if (modal && previewContent) {
+    previewContent.textContent = mergedCSS;
+    modal.classList.remove('hidden');
+  }
+}
+
+/**
+ * Close merge preview modal
+ */
+function closeMergePreview() {
+  const modal = document.getElementById('mergePreviewModal');
+  if (modal) {
+    modal.classList.add('hidden');
+  }
 }
 
 /**
