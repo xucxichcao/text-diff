@@ -2,7 +2,7 @@
   "name": "text-diff",
   "description": "A modern web tool to visually compare and diff two text files",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
