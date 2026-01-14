@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- Modern sleek fox - favicon optimized -->
+  
+  <!-- Face shape -->
+  <path d="M16 28 C8 28 4 22 4 16 C4 12 6 8 10 6 L16 2 L22 6 C26 8 28 12 28 16 C28 22 24 28 16 28Z" fill="#FF7A3D"/>
+  
+  <!-- Inner face gradient effect -->
+  <path d="M16 26 C10 26 7 21 7 16 C7 13 8 10 11 8 L16 5 L21 8 C24 10 25 13 25 16 C25 21 22 26 16 26Z" fill="#FF9458"/>
+  
+  <!-- White chest/chin -->
+  <path d="M16 28 C12 28 9 25 9 22 L16 18 L23 22 C23 25 20 28 16 28Z" fill="#FFFFFF"/>
+  
+  <!-- Eyes -->
+  <ellipse cx="11.5" cy="15" rx="2" ry="2.2" fill="#2D2D2D"/>
+  <ellipse cx="20.5" cy="15" rx="2" ry="2.2" fill="#2D2D2D"/>
+  <circle cx="12" cy="14.3" r="0.7" fill="#FFFFFF"/>
+  <circle cx="21" cy="14.3" r="0.7" fill="#FFFFFF"/>
+  
+  <!-- Nose -->
+  <ellipse cx="16" cy="21" rx="1.8" ry="1.4" fill="#2D2D2D"/>
+  
+  <!-- Subtle diff accent - small badges on ears -->
+  <circle cx="8" cy="8" r="2.5" fill="#E55D5D"/>
+  <rect x="6.5" y="7.5" width="3" height="1" rx="0.5" fill="#FFFFFF"/>
+  
+  <circle cx="24" cy="8" r="2.5" fill="#4CAF50"/>
+  <rect x="22.5" y="7.5" width="3" height="1" rx="0.5" fill="#FFFFFF"/>
+  <rect x="23.5" y="6.5" width="1" height="3" rx="0.5" fill="#FFFFFF"/>
+</svg>

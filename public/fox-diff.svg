@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Modern sleek fox - full size app icon -->
+  
+  <!-- Background -->
+  <circle cx="256" cy="256" r="240" fill="#1E1E2E"/>
+  
+  <!-- Fox face main shape - pointed, sleek -->
+  <path d="M256 440 C128 440 64 344 64 248 C64 184 96 120 160 88 L256 24 L352 88 C416 120 448 184 448 248 C448 344 384 440 256 440Z" fill="#FF7A3D"/>
+  
+  <!-- Inner face - lighter shade for depth -->
+  <path d="M256 408 C152 408 104 328 104 248 C104 196 128 144 176 116 L256 64 L336 116 C384 144 408 196 408 248 C408 328 360 408 256 408Z" fill="#FF9458"/>
+  
+  <!-- White chest area -->
+  <path d="M256 440 C184 440 136 392 136 344 L256 280 L376 344 C376 392 328 440 256 440Z" fill="#FFFFFF"/>
+  
+  <!-- Left eye -->
+  <ellipse cx="184" cy="232" rx="32" ry="36" fill="#2D2D2D"/>
+  <circle cx="192" cy="222" r="10" fill="#FFFFFF"/>
+  
+  <!-- Right eye -->
+  <ellipse cx="328" cy="232" rx="32" ry="36" fill="#2D2D2D"/>
+  <circle cx="336" cy="222" r="10" fill="#FFFFFF"/>
+  
+  <!-- Nose -->
+  <ellipse cx="256" cy="328" rx="28" ry="22" fill="#2D2D2D"/>
+  <ellipse cx="256" cy="322" rx="10" ry="6" fill="#444"/>
+  
+  <!-- Subtle diff badges on ear tips -->
+  <!-- Left ear - minus (removed) -->
+  <circle cx="128" cy="120" r="36" fill="#E55D5D"/>
+  <rect x="108" y="112" width="40" height="16" rx="8" fill="#FFFFFF"/>
+  
+  <!-- Right ear - plus (added) -->
+  <circle cx="384" cy="120" r="36" fill="#4CAF50"/>
+  <rect x="364" y="112" width="40" height="16" rx="8" fill="#FFFFFF"/>
+  <rect x="376" y="100" width="16" height="40" rx="8" fill="#FFFFFF"/>
+</svg>

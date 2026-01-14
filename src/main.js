@@ -7,6 +7,156 @@ import { computeDiff, generateSplitDiff, generateUnifiedDiff, findInlineDiff, fi
 import { highlightLine as highlightCSS } from './syntax-highlighter.js';
 import { sampleOriginal, sampleModified } from './sample-data.js';
 
+// Tauri API imports (conditionally loaded)
+let openDialog = null;
+let saveDialog = null;
+let readTextFile = null;
+let writeTextFile = null;
+
+/**
+ * Check if running in Tauri environment
+ */
+function isTauri() {
+  return typeof window !== 'undefined' && (window.__TAURI__ || window.__TAURI_INTERNALS__);
+}
+
+/**
+ * Initialize Tauri APIs if available
+ */
+async function initTauriAPIs() {
+  if (isTauri()) {
+    try {
+      const dialogModule = await import('@tauri-apps/plugin-dialog');
+      openDialog = dialogModule.open;
+      saveDialog = dialogModule.save;
+      
+      const fsModule = await import('@tauri-apps/plugin-fs');
+      readTextFile = fsModule.readTextFile;
+      writeTextFile = fsModule.writeTextFile;
+      
+      console.log('Tauri APIs initialized successfully');
+    } catch (err) {
+      console.warn('Failed to load Tauri plugins:', err);
+    }
+  }
+}
+
+/**
+ * Open file dialog and load content into textarea
+ * @param {'left' | 'right'} side - Which panel to load into
+ */
+async function openFileDialog(side) {
+  const textarea = side === 'left' ? cssLeft : cssRight;
+  
+  // Ensure Tauri APIs are initialized
+  if (isTauri() && !openDialog) {
+    await initTauriAPIs();
+  }
+  
+  if (isTauri() && openDialog) {
+    try {
+      console.log('Opening file dialog...');
+      const selected = await openDialog({
+        multiple: false,
+        filters: [{
+          name: 'Text Files',
+          extensions: ['txt', 'css', 'js', 'ts', 'jsx', 'tsx', 'json', 'md', 'html', 'xml', 'yaml', 'yml', 'toml', 'ini', 'conf', 'log', 'py', 'rb', 'go', 'rs', 'java', 'c', 'cpp', 'h', 'hpp', 'sh', 'bash', 'zsh', 'sql', 'graphql', 'vue', 'svelte']
+        }, {
+          name: 'All Files',
+          extensions: ['*']
+        }]
+      });
+      
+      console.log('Selected file:', selected);
+      
+      if (selected) {
+        const content = await readTextFile(selected);
+        textarea.value = content;
+        textarea.focus();
+      }
+    } catch (err) {
+      console.error('Failed to open file:', err);
+    }
+  } else {
+    console.log('Tauri not available, using web fallback');
+    // Fallback for web: create a hidden file input
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.txt,.css,.js,.ts,.jsx,.tsx,.json,.md,.html,.xml,.yaml,.yml,.toml,.ini,.conf,.log,.py,.rb,.go,.rs,.java,.c,.cpp,.h,.hpp,.sh,.bash,.zsh,.sql,.graphql,.vue,.svelte,*';
+    
+    input.onchange = async (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        try {
+          const text = await file.text();
+          textarea.value = text;
+          textarea.focus();
+        } catch (err) {
+          console.error('Failed to read file:', err);
+        }
+      }
+    };
+    
+    input.click();
+  }
+}
+
+/**
+ * Save merged content using native file dialog
+ */
+async function saveFileDialog() {
+  // Ensure Tauri APIs are initialized
+  if (isTauri() && !saveDialog) {
+    await initTauriAPIs();
+  }
+  
+  const mergedContent = generateMergedCSS();
+  
+  if (isTauri() && saveDialog && writeTextFile) {
+    try {
+      console.log('Opening save dialog...');
+      const filePath = await saveDialog({
+        defaultPath: 'merged.txt',
+        filters: [{
+          name: 'Text Files',
+          extensions: ['txt', 'css', 'js', 'ts', 'json', 'md', 'html', 'xml', 'yaml', 'yml']
+        }, {
+          name: 'All Files',
+          extensions: ['*']
+        }]
+      });
+      
+      console.log('Selected path:', filePath);
+      
+      if (filePath) {
+        await writeTextFile(filePath, mergedContent);
+        console.log('File saved successfully:', filePath);
+      }
+    } catch (err) {
+      console.error('Failed to save file:', err);
+    }
+  } else {
+    console.log('Tauri not available, using web fallback. isTauri:', isTauri(), 'saveDialog:', !!saveDialog);
+    // Fallback for web: use download link
+    downloadMergedText(mergedContent);
+  }
+}
+
+/**
+ * Helper to download text as file (web fallback)
+ */
+function downloadMergedText(content) {
+  const blob = new Blob([content], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'merged.txt';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 // DOM Elements
 const cssLeft = document.getElementById('cssLeft');
 const cssRight = document.getElementById('cssRight');
@@ -31,6 +181,8 @@ const loadSampleRight = document.getElementById('loadSampleRight');
 const clearLeft = document.getElementById('clearLeft');
 const clearRight = document.getElementById('clearRight');
 const themeToggle = document.getElementById('themeToggle');
+const openFileLeft = document.getElementById('openFileLeft');
+const openFileRight = document.getElementById('openFileRight');
 
 // Line navigation elements
 const prevDiffBtn = document.getElementById('prevDiffBtn');
@@ -65,6 +217,7 @@ let activeGroupId = null; // Currently selected group for merge popup
  */
 function init() {
   initTheme();
+  initTauriAPIs(); // Initialize Tauri APIs if available
   setupEventListeners();
   setupDragAndDrop();
 }
@@ -137,6 +290,10 @@ function setupEventListeners() {
     cssRight.focus();
   });
   
+  // Open file buttons
+  openFileLeft.addEventListener('click', () => openFileDialog('left'));
+  openFileRight.addEventListener('click', () => openFileDialog('right'));
+  
   // Line navigation buttons
   prevDiffBtn.addEventListener('click', () => navigateDiff(-1));
   nextDiffBtn.addEventListener('click', () => navigateDiff(1));
@@ -187,6 +344,27 @@ function setupEventListeners() {
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
       e.preventDefault();
       handleCompare();
+    }
+    
+    // Ctrl/Cmd + O to open file (left panel) - only in input view
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === 'o') {
+      if (!diffSection.classList.contains('hidden')) return; // Only in input view
+      e.preventDefault();
+      openFileDialog('left');
+    }
+    
+    // Ctrl/Cmd + Shift + O to open file (right panel) - only in input view
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'O') {
+      if (!diffSection.classList.contains('hidden')) return; // Only in input view
+      e.preventDefault();
+      openFileDialog('right');
+    }
+    
+    // Ctrl/Cmd + S to save merged result - only in diff view
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+      if (diffSection.classList.contains('hidden')) return; // Only in diff view
+      e.preventDefault();
+      saveFileDialog();
     }
     
     // Escape to close modals or go back
@@ -306,17 +484,12 @@ function setupDragAndDrop() {
       const files = e.dataTransfer.files;
       if (files.length > 0) {
         const file = files[0];
-        if (file.type === 'text/css' || file.name.endsWith('.css')) {
+        // Try to read any file as text
+        try {
           const text = await file.text();
           textarea.value = text;
-        } else {
-          // Try to read as text anyway
-          try {
-            const text = await file.text();
-            textarea.value = text;
-          } catch (err) {
-            console.error('Could not read file:', err);
-          }
+        } catch (err) {
+          console.error('Could not read file:', err);
         }
       }
     });
@@ -848,6 +1021,9 @@ function openMergePopup(groupIndex) {
     modifiedLabel.textContent = 'Added Lines';
     modifiedContent.innerHTML = generateHighlightedContent(modifiedLines, 'added');
     
+    // Update shortcut label for single version view
+    versionModified.querySelector('.merge-version-shortcut').textContent = 'Press 1 to Keep, 2 to Discard';
+    
     actionsContainer.innerHTML = `
       <button class="merge-popup-action merge-popup-action-keep ${currentDecision === 'keep' ? 'active' : ''}" data-action="keep">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -876,6 +1052,9 @@ function openMergePopup(groupIndex) {
     
     originalLabel.textContent = 'Removed Lines';
     originalContent.innerHTML = generateHighlightedContent(originalLines, 'removed');
+    
+    // Update shortcut label for single version view
+    versionOriginal.querySelector('.merge-version-shortcut').textContent = 'Press 1 to Restore, 2 to Accept Removal';
     
     actionsContainer.innerHTML = `
       <button class="merge-popup-action merge-popup-action-restore ${currentDecision === 'restore' ? 'active' : ''}" data-action="restore">
@@ -906,6 +1085,10 @@ function openMergePopup(groupIndex) {
     
     originalLabel.textContent = 'Original';
     modifiedLabel.textContent = 'Modified';
+    
+    // Reset shortcut labels for two-version view
+    versionOriginal.querySelector('.merge-version-shortcut').textContent = 'Press 1';
+    versionModified.querySelector('.merge-version-shortcut').textContent = 'Press 2';
     
     // Generate highlighted content with inline diffs
     const originalHighlighted = generateHighlightedContent(originalLines, 'original', modifiedLines);
@@ -974,6 +1157,11 @@ function applyMergeDecision(groupId, action) {
   // Update UI
   applyGroupDecisionUI(groupId, mergeDecisions.get(groupId));
   updateMergeStats();
+  
+  // Update unified view to reflect merge decisions
+  if (currentView === 'unified') {
+    renderUnifiedViewWithMergeDecisions();
+  }
   
   // Update popup buttons
   const popup = document.getElementById('mergePopup');
@@ -1141,17 +1329,24 @@ function generateMergedCSS() {
 }
 
 /**
- * Export merged CSS
+ * Export merged CSS to a file
  */
-function exportMergedCSS() {
+async function exportMergedCSS() {
+  // Use native save dialog if in Tauri
+  if (isTauri()) {
+    await saveFileDialog();
+    return;
+  }
+  
+  // Web fallback: download directly
   const mergedCSS = generateMergedCSS();
   
   // Create blob and download
-  const blob = new Blob([mergedCSS], { type: 'text/css' });
+  const blob = new Blob([mergedCSS], { type: 'text/plain' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = 'merged.css';
+  a.download = 'merged.txt';
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -1181,15 +1376,16 @@ async function copyMergedCSS() {
 }
 
 /**
- * Preview merged CSS in a modal
+ * Preview merged CSS in a modal - shows unified diff style view
  */
 function previewMergedCSS() {
-  const mergedCSS = generateMergedCSS();
   const modal = document.getElementById('mergePreviewModal');
   const previewContent = document.getElementById('mergePreviewContent');
   
   if (modal && previewContent) {
-    previewContent.textContent = mergedCSS;
+    // Generate unified diff style HTML
+    const previewHTML = generateUnifiedPreviewHTML();
+    previewContent.innerHTML = previewHTML;
     modal.classList.remove('hidden');
   }
 }
@@ -1246,6 +1442,233 @@ function renderUnifiedView(diff) {
 }
 
 /**
+ * Generate unified diff data with merge decisions applied
+ * This shows the merged result in unified diff style
+ * @param {Array} diff - Original diff array
+ * @returns {Array} - Unified diff lines with merge decisions applied
+ */
+function generateUnifiedDiffWithMergeDecisions(diff) {
+  const { left, right } = generateSplitDiff(diff);
+  const result = [];
+  
+  for (let i = 0; i < left.length; i++) {
+    const leftItem = left[i];
+    const rightItem = right[i];
+    const groupId = getGroupIdForLine(i);
+    const decision = groupId !== null ? mergeDecisions.get(groupId) : null;
+    const group = groupId !== null ? diffGroups.find(g => g.id === groupId) : null;
+    const isResolved = decision !== null && decision !== undefined;
+    
+    if (leftItem.type === 'unchanged') {
+      // Unchanged lines always shown normally
+      result.push({
+        type: 'unchanged',
+        prefix: ' ',
+        content: leftItem.content,
+        leftLine: leftItem.lineNumber,
+        rightLine: rightItem.lineNumber,
+        resolved: false
+      });
+    } else if (leftItem.type === 'removed') {
+      // Line was removed - show based on decision
+      if (isResolved) {
+        if (decision === 'restore' || decision === 'original' || decision === 'both') {
+          // User chose to keep the removed line - show as "kept" (unchanged style)
+          result.push({
+            type: 'resolved-kept',
+            prefix: ' ',
+            content: leftItem.content,
+            leftLine: leftItem.lineNumber,
+            rightLine: null,
+            resolved: true,
+            decision: decision
+          });
+        } else {
+          // User accepted the removal - show as resolved-removed
+          result.push({
+            type: 'resolved-removed',
+            prefix: '-',
+            content: leftItem.content,
+            leftLine: leftItem.lineNumber,
+            rightLine: null,
+            resolved: true,
+            decision: decision
+          });
+        }
+      } else {
+        // Not resolved - show as pending removal
+        result.push({
+          type: 'removed',
+          prefix: '-',
+          content: leftItem.content,
+          leftLine: leftItem.lineNumber,
+          rightLine: null,
+          resolved: false
+        });
+      }
+    } else if (leftItem.type === 'empty' && rightItem.type === 'added') {
+      // Line was added - show based on decision
+      if (isResolved) {
+        if (decision === 'discard' || decision === 'original') {
+          // User chose to discard the added line - show as resolved-discarded
+          result.push({
+            type: 'resolved-discarded',
+            prefix: '+',
+            content: rightItem.content,
+            leftLine: null,
+            rightLine: rightItem.lineNumber,
+            resolved: true,
+            decision: decision
+          });
+        } else {
+          // User kept the added line - show as "kept" (unchanged style)
+          result.push({
+            type: 'resolved-kept',
+            prefix: ' ',
+            content: rightItem.content,
+            leftLine: null,
+            rightLine: rightItem.lineNumber,
+            resolved: true,
+            decision: decision
+          });
+        }
+      } else {
+        // Not resolved - show as pending addition
+        result.push({
+          type: 'added',
+          prefix: '+',
+          content: rightItem.content,
+          leftLine: null,
+          rightLine: rightItem.lineNumber,
+          resolved: false
+        });
+      }
+    } else if (leftItem.type === 'modified') {
+      // Line was modified - show based on decision
+      if (isResolved) {
+        if (decision === 'original') {
+          // User chose original - show original as kept
+          result.push({
+            type: 'resolved-kept',
+            prefix: ' ',
+            content: leftItem.content,
+            leftLine: leftItem.lineNumber,
+            rightLine: null,
+            resolved: true,
+            decision: decision
+          });
+        } else if (decision === 'both') {
+          // User chose both - show both as kept
+          result.push({
+            type: 'resolved-kept',
+            prefix: ' ',
+            content: leftItem.content,
+            leftLine: leftItem.lineNumber,
+            rightLine: null,
+            resolved: true,
+            decision: decision
+          });
+          result.push({
+            type: 'resolved-kept',
+            prefix: ' ',
+            content: rightItem.content,
+            leftLine: null,
+            rightLine: rightItem.lineNumber,
+            resolved: true,
+            decision: decision
+          });
+        } else {
+          // User chose modified (default) - show modified as kept
+          result.push({
+            type: 'resolved-kept',
+            prefix: ' ',
+            content: rightItem.content,
+            leftLine: null,
+            rightLine: rightItem.lineNumber,
+            resolved: true,
+            decision: decision
+          });
+        }
+      } else {
+        // Not resolved - show as removed + added (standard unified diff for modifications)
+        result.push({
+          type: 'removed',
+          prefix: '-',
+          content: leftItem.content,
+          leftLine: leftItem.lineNumber,
+          rightLine: null,
+          resolved: false
+        });
+        result.push({
+          type: 'added',
+          prefix: '+',
+          content: rightItem.content,
+          leftLine: null,
+          rightLine: rightItem.lineNumber,
+          resolved: false
+        });
+      }
+    }
+  }
+  
+  return result;
+}
+
+/**
+ * Render unified view with merge decisions applied
+ * Shows resolved groups as the chosen version
+ */
+function renderUnifiedViewWithMergeDecisions() {
+  if (!diffResult) return;
+  
+  const unified = generateUnifiedDiffWithMergeDecisions(diffResult.diff);
+  
+  unifiedContent.innerHTML = unified.map(item => {
+    const leftNum = item.leftLine !== null ? item.leftLine : '';
+    const rightNum = item.rightLine !== null ? item.rightLine : '';
+    const content = highlightCSS(item.content);
+    
+    // Add resolved class for styling
+    const resolvedClass = item.resolved ? 'merge-resolved' : '';
+    const decisionClass = item.decision ? `merge-decision-${item.decision}` : '';
+    
+    return `<div class="diff-line ${item.type} ${resolvedClass} ${decisionClass}">
+      <span class="line-number">${leftNum}</span>
+      <span class="line-number">${rightNum}</span>
+      <span class="line-prefix">${item.prefix}</span>
+      <span class="line-content">${content}</span>
+    </div>`;
+  }).join('');
+}
+
+/**
+ * Generate HTML for unified diff preview (used in preview modal)
+ * @returns {string} - HTML string for the preview
+ */
+function generateUnifiedPreviewHTML() {
+  if (!diffResult) return '';
+  
+  const unified = generateUnifiedDiffWithMergeDecisions(diffResult.diff);
+  
+  return unified.map(item => {
+    const leftNum = item.leftLine !== null ? item.leftLine : '';
+    const rightNum = item.rightLine !== null ? item.rightLine : '';
+    const content = highlightCSS(item.content);
+    
+    // Add resolved class for styling
+    const resolvedClass = item.resolved ? 'merge-resolved' : '';
+    const decisionClass = item.decision ? `merge-decision-${item.decision}` : '';
+    
+    return `<div class="diff-line ${item.type} ${resolvedClass} ${decisionClass}">
+      <span class="line-number">${leftNum}</span>
+      <span class="line-number">${rightNum}</span>
+      <span class="line-prefix">${item.prefix}</span>
+      <span class="line-content">${content}</span>
+    </div>`;
+  }).join('');
+}
+
+/**
  * Sync scroll between panes
  */
 function syncScroll(left, right, gutter) {
@@ -1287,6 +1710,10 @@ function switchView(view) {
   } else {
     splitView.classList.add('hidden');
     unifiedView.classList.remove('hidden');
+    // Re-render unified view with merge decisions applied
+    if (diffResult) {
+      renderUnifiedViewWithMergeDecisions();
+    }
   }
   
   // Rebuild navigation indices for the new view

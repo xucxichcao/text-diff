@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <link rel="icon" type="image/svg+xml" href="/logo-transparent.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Text Diff - Compare Text Files</title>
     <meta name="description" content="A modern web tool to visually compare and diff two text files. See additions, deletions, and modifications with syntax highlighting.">
@@ -16,11 +16,7 @@
       <header class="header">
         <div class="header-left">
           <div class="logo">
-            <svg class="logo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M12 2L2 7l10 5 10-5-10-5z"/>
-              <path d="M2 17l10 5 10-5"/>
-              <path d="M2 12l10 5 10-5"/>
-            </svg>
+            <img src="/logo-transparent.svg" alt="Text Diff Logo" class="logo-icon" />
             <h1>Text Diff</h1>
           </div>
         </div>
@@ -80,8 +76,13 @@
           <div class="input-container">
             <div class="input-panel" id="leftPanel">
               <div class="panel-header">
-                <span class="panel-title">Original CSS</span>
+                <span class="panel-title">Original</span>
                 <div class="panel-actions">
+                  <button class="action-btn" id="openFileLeft" title="Open file (Ctrl/Cmd+O)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                    </svg>
+                  </button>
                   <button class="action-btn" id="loadSampleLeft" title="Load sample">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                       <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
@@ -97,14 +98,14 @@
                 </div>
               </div>
               <div class="drop-zone" id="dropZoneLeft">
-                <textarea class="code-input" id="cssLeft" placeholder="Paste your original CSS here or drag & drop a file..."></textarea>
+                <textarea class="code-input" id="cssLeft" placeholder="Paste your original text here or drag & drop a file..."></textarea>
                 <div class="drop-overlay">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
                     <polyline points="17 8 12 3 7 8"/>
                     <line x1="12" y1="3" x2="12" y2="15"/>
                   </svg>
-                  <span>Drop CSS file here</span>
+                  <span>Drop file here</span>
                 </div>
               </div>
             </div>
@@ -122,8 +123,13 @@
 
             <div class="input-panel" id="rightPanel">
               <div class="panel-header">
-                <span class="panel-title">Modified CSS</span>
+                <span class="panel-title">Modified</span>
                 <div class="panel-actions">
+                  <button class="action-btn" id="openFileRight" title="Open file (Ctrl/Cmd+Shift+O)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                    </svg>
+                  </button>
                   <button class="action-btn" id="loadSampleRight" title="Load sample">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                       <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
@@ -139,14 +145,14 @@
                 </div>
               </div>
               <div class="drop-zone" id="dropZoneRight">
-                <textarea class="code-input" id="cssRight" placeholder="Paste your modified CSS here or drag & drop a file..."></textarea>
+                <textarea class="code-input" id="cssRight" placeholder="Paste your modified text here or drag & drop a file..."></textarea>
                 <div class="drop-overlay">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
                     <polyline points="17 8 12 3 7 8"/>
                     <line x1="12" y1="3" x2="12" y2="15"/>
                   </svg>
-                  <span>Drop CSS file here</span>
+                  <span>Drop file here</span>
                 </div>
               </div>
             </div>
@@ -266,14 +272,14 @@
                   </svg>
                   <span>Preview</span>
                 </button>
-                <button class="merge-action-btn" id="copyMergeBtn" title="Copy merged CSS (C)">
+                <button class="merge-action-btn" id="copyMergeBtn" title="Copy merged text (C)">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
                     <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
                   </svg>
                   <span>Copy</span>
                 </button>
-                <button class="merge-action-btn merge-action-btn-primary" id="exportMergeBtn" title="Download merged CSS (E)">
+                <button class="merge-action-btn merge-action-btn-primary" id="exportMergeBtn" title="Download merged text (E)">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
                     <polyline points="7 10 12 15 17 10"/>
@@ -291,7 +297,7 @@
       <div class="merge-preview-modal hidden" id="mergePreviewModal">
         <div class="merge-preview-content">
           <div class="merge-preview-header">
-            <h2>Merged CSS Preview</h2>
+            <h2>Merged Result Preview</h2>
             <button class="merge-preview-close" id="closePreviewBtn" title="Close">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <line x1="18" y1="6" x2="6" y2="18"/>
@@ -300,7 +306,7 @@
             </button>
           </div>
           <div class="merge-preview-body">
-            <pre class="merge-preview-code" id="mergePreviewContent"></pre>
+            <div class="merge-preview-code unified-preview" id="mergePreviewContent"></div>
           </div>
           <div class="merge-preview-footer">
             <button class="merge-action-btn" id="copyPreviewBtn" onclick="document.getElementById('copyMergeBtn').click()">
@@ -316,7 +322,7 @@
                 <polyline points="7 10 12 15 17 10"/>
                 <line x1="12" y1="15" x2="12" y2="3"/>
               </svg>
-              Download CSS
+              Download
             </button>
           </div>
         </div>

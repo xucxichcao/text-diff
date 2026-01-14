@@ -1130,6 +1130,135 @@ body::before {
   text-decoration: line-through;
 }
 
+/* ============================================
+   Unified View Resolved States
+   ============================================ */
+
+/* Resolved kept - line is part of the final result */
+.diff-line.resolved-kept {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+.diff-line.resolved-kept .line-prefix {
+  color: var(--text-muted);
+}
+
+/* Add a subtle green left border to indicate it was kept */
+.diff-line.resolved-kept.merge-resolved {
+  box-shadow: inset 4px 0 0 0 var(--accent-primary);
+}
+
+/* Resolved removed - line was removed and accepted */
+.diff-line.resolved-removed {
+  background-color: var(--diff-removed-bg);
+  opacity: 0.5;
+  text-decoration: line-through;
+}
+
+.diff-line.resolved-removed .line-prefix {
+  color: var(--diff-removed-text);
+}
+
+/* Resolved discarded - added line was discarded */
+.diff-line.resolved-discarded {
+  background-color: var(--diff-added-bg);
+  opacity: 0.5;
+  text-decoration: line-through;
+}
+
+.diff-line.resolved-discarded .line-prefix {
+  color: var(--diff-added-text);
+}
+
+/* ============================================
+   Preview Modal Unified Styles
+   ============================================ */
+.merge-preview-code.unified-preview {
+  padding: 0;
+  white-space: normal;
+  word-break: normal;
+  overflow: auto;
+  max-height: 100%;
+}
+
+.unified-preview .diff-line {
+  display: flex;
+  align-items: stretch;
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  min-height: 1.6em;
+}
+
+.unified-preview .diff-line .line-number {
+  min-width: 40px;
+  padding: 0 var(--space-sm);
+  text-align: right;
+  color: var(--text-muted);
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border-default);
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.unified-preview .diff-line .line-prefix {
+  min-width: 24px;
+  padding: 0 var(--space-xs);
+  text-align: center;
+  font-weight: 600;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.unified-preview .diff-line .line-content {
+  flex: 1;
+  padding: 0 var(--space-sm);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Preview specific diff line colors */
+.unified-preview .diff-line.added {
+  background-color: var(--diff-added-bg);
+}
+
+.unified-preview .diff-line.added .line-prefix {
+  color: var(--diff-added-text);
+}
+
+.unified-preview .diff-line.removed {
+  background-color: var(--diff-removed-bg);
+}
+
+.unified-preview .diff-line.removed .line-prefix {
+  color: var(--diff-removed-text);
+}
+
+.unified-preview .diff-line.unchanged {
+  background-color: var(--bg-primary);
+}
+
+.unified-preview .diff-line.resolved-kept {
+  background-color: var(--bg-primary);
+}
+
+.unified-preview .diff-line.resolved-kept.merge-resolved {
+  box-shadow: inset 4px 0 0 0 var(--accent-primary);
+}
+
+.unified-preview .diff-line.resolved-removed {
+  background-color: var(--diff-removed-bg);
+  opacity: 0.5;
+  text-decoration: line-through;
+}
+
+.unified-preview .diff-line.resolved-discarded {
+  background-color: var(--diff-added-bg);
+  opacity: 0.5;
+  text-decoration: line-through;
+}
+
 /* Merge Popup */
 .merge-popup {
   position: fixed;
