@@ -1,6 +1,6 @@
 [package]
 name = "text-diff"
-version = "1.0.0"
+version = "1.1.0"
 description = "A modern text diff and merge tool"
 authors = ["you"]
 license = "MIT"

@@ -5,7 +5,20 @@
 import './style.css';
 import { computeDiff, generateSplitDiff, generateUnifiedDiff, findInlineDiff, findInlineDiffWords } from './diff-engine.js';
 import { highlightLine as highlightCSS } from './syntax-highlighter.js';
-import { sampleOriginal, sampleModified } from './sample-data.js';
+import { sampleOriginal, sampleModified, sampleJSONOriginal, sampleJSONModified } from './sample-data.js';
+import { isValidJSON, parseJSON, compareJSON, countChanges } from './json-diff-engine.js';
+import { 
+  initRenderer, 
+  renderBothSides, 
+  getDiffStats, 
+  togglePath, 
+  expandChanges, 
+  expandAll, 
+  collapseAll,
+  setShowOnlyChanges,
+  getShowOnlyChanges,
+  handleTreeClick
+} from './json-diff-renderer.js';
 
 // Tauri API imports (conditionally loaded)
 let openDialog = null;
@@ -184,6 +197,13 @@ const themeToggle = document.getElementById('themeToggle');
 const openFileLeft = document.getElementById('openFileLeft');
 const openFileRight = document.getElementById('openFileRight');
 
+// JSON diff elements
+const jsonDiffView = document.getElementById('jsonDiffView');
+const jsonDiffLeft = document.getElementById('jsonDiffLeft');
+const jsonDiffRight = document.getElementById('jsonDiffRight');
+const showChangesToggle = document.getElementById('showChangesToggle');
+const showOnlyChangesCheckbox = document.getElementById('showOnlyChanges');
+
 // Line navigation elements
 const prevDiffBtn = document.getElementById('prevDiffBtn');
 const nextDiffBtn = document.getElementById('nextDiffBtn');
@@ -198,7 +218,10 @@ const totalGroups = document.getElementById('totalGroups');
 
 // State
 let currentView = 'split';
+let currentMode = 'text'; // 'text' or 'json'
+let isAutoDetectedJSON = false;
 let diffResult = null;
+let jsonDiffResult = null; // Stores the JSON diff tree
 
 // Line navigation state
 let diffIndices = []; // Indices of individual diff lines
@@ -220,6 +243,8 @@ function init() {
   initTauriAPIs(); // Initialize Tauri APIs if available
   setupEventListeners();
   setupDragAndDrop();
+  setupJSONDiffHandlers();
+  hideHeaderToggles(); // Hide toggles on initial load
 }
 
 /**
@@ -268,16 +293,38 @@ function setupEventListeners() {
     });
   });
   
-  // Sample data buttons
-  loadSampleLeft.addEventListener('click', () => {
-    cssLeft.value = sampleOriginal;
+  // Show only changes toggle
+  if (showOnlyChangesCheckbox) {
+    showOnlyChangesCheckbox.addEventListener('change', () => {
+      setShowOnlyChanges(showOnlyChangesCheckbox.checked);
+      if (jsonDiffResult) {
+        renderJSONDiff();
+      }
+    });
+  }
+  
+  // Sample data buttons (Shift+click loads JSON samples)
+  loadSampleLeft.addEventListener('click', (e) => {
+    if (e.shiftKey) {
+      cssLeft.value = sampleJSONOriginal;
+    } else {
+      cssLeft.value = sampleOriginal;
+    }
     cssLeft.focus();
   });
   
-  loadSampleRight.addEventListener('click', () => {
-    cssRight.value = sampleModified;
+  loadSampleRight.addEventListener('click', (e) => {
+    if (e.shiftKey) {
+      cssRight.value = sampleJSONModified;
+    } else {
+      cssRight.value = sampleModified;
+    }
     cssRight.focus();
   });
+  
+  // Update tooltips to indicate Shift+click for JSON
+  loadSampleLeft.title = 'Load sample (Shift+click for JSON)';
+  loadSampleRight.title = 'Load sample (Shift+click for JSON)';
   
   // Clear buttons
   clearLeft.addEventListener('click', () => {
@@ -513,23 +560,53 @@ function handleCompare() {
     return;
   }
   
-  // Compute diff
-  diffResult = computeDiff(original, modified);
-  
   // Reset merge state
   mergeDecisions = new Map();
   activeGroupId = null;
   
-  // Update statistics
-  updateStats(diffResult.stats);
+  // Check if both inputs are valid JSON
+  const bothAreJSON = isValidJSON(original) && isValidJSON(modified);
   
-  // Render diff views
-  renderSplitView(diffResult.diff);
-  renderUnifiedView(diffResult.diff);
-  
-  // Build navigation indices
-  buildDiffIndices();
-  buildDiffGroups();
+  if (bothAreJSON) {
+    // Auto-switch to JSON mode
+    isAutoDetectedJSON = true;
+    switchMode('json');
+    
+    // Parse JSON and compute structural diff
+    const originalJSON = parseJSON(original);
+    const modifiedJSON = parseJSON(modified);
+    jsonDiffResult = compareJSON(originalJSON, modifiedJSON, '$');
+    
+    // Initialize renderer and expand changed paths
+    initRenderer();
+    expandChanges(jsonDiffResult);
+    
+    // Get JSON diff stats
+    const jsonStats = getDiffStats(jsonDiffResult);
+    updateStats(jsonStats);
+    
+    // Render JSON diff
+    renderJSONDiff();
+  } else {
+    // Text mode
+    isAutoDetectedJSON = false;
+    switchMode('text');
+    jsonDiffResult = null;
+    
+    // Compute text diff
+    diffResult = computeDiff(original, modified);
+    
+    // Update statistics
+    updateStats(diffResult.stats);
+    
+    // Render diff views
+    renderSplitView(diffResult.diff);
+    renderUnifiedView(diffResult.diff);
+    
+    // Build navigation indices
+    buildDiffIndices();
+    buildDiffGroups();
+  }
   
   // Show diff section
   showDiff();
@@ -1703,7 +1780,16 @@ function switchView(view) {
     btn.classList.toggle('active', btn.dataset.view === view);
   });
   
-  // Toggle views
+  // In JSON mode, only split view is supported
+  if (currentMode === 'json') {
+    splitView.classList.add('hidden');
+    unifiedView.classList.add('hidden');
+    jsonDiffView.classList.remove('hidden');
+    return;
+  }
+  
+  // Toggle views for text mode
+  jsonDiffView.classList.add('hidden');
   if (view === 'split') {
     splitView.classList.remove('hidden');
     unifiedView.classList.add('hidden');
@@ -1724,6 +1810,134 @@ function switchView(view) {
 }
 
 /**
+ * Switch between text and JSON mode (internal use only - auto-detected)
+ * @param {string} mode - 'text' or 'json'
+ */
+function switchMode(mode) {
+  currentMode = mode;
+  
+  // Update header toggles visibility
+  showHeaderToggles();
+  
+  // Show/hide appropriate views
+  if (mode === 'json') {
+    splitView.classList.add('hidden');
+    unifiedView.classList.add('hidden');
+    jsonDiffView.classList.remove('hidden');
+    
+    // Show "changes only" toggle
+    if (showChangesToggle) {
+      showChangesToggle.classList.remove('hidden');
+    }
+    
+    // Hide navigation controls (not applicable to JSON tree view)
+    const navSection = document.querySelector('.nav-section');
+    const mergeSection = document.querySelector('.merge-section');
+    if (navSection) navSection.style.display = 'none';
+    if (mergeSection) mergeSection.style.display = 'none';
+  } else {
+    jsonDiffView.classList.add('hidden');
+    
+    // Restore view based on currentView
+    if (currentView === 'split') {
+      splitView.classList.remove('hidden');
+      unifiedView.classList.add('hidden');
+    } else {
+      splitView.classList.add('hidden');
+      unifiedView.classList.remove('hidden');
+    }
+    
+    // Hide "changes only" toggle
+    if (showChangesToggle) {
+      showChangesToggle.classList.add('hidden');
+    }
+    
+    // Show navigation controls
+    const navSection = document.querySelector('.nav-section');
+    const mergeSection = document.querySelector('.merge-section');
+    if (navSection) navSection.style.display = '';
+    if (mergeSection) mergeSection.style.display = '';
+  }
+}
+
+/**
+ * Render JSON diff in both panes
+ */
+function renderJSONDiff() {
+  if (!jsonDiffResult || !jsonDiffLeft || !jsonDiffRight) return;
+  
+  const { leftHtml, rightHtml } = renderBothSides(jsonDiffResult);
+  
+  jsonDiffLeft.innerHTML = leftHtml;
+  jsonDiffRight.innerHTML = rightHtml;
+}
+
+/**
+ * Setup JSON diff event handlers (called once during init)
+ */
+function setupJSONDiffHandlers() {
+  if (!jsonDiffLeft || !jsonDiffRight) return;
+  
+  // Click handlers for expand/collapse - using event delegation
+  jsonDiffLeft.addEventListener('click', (e) => {
+    handleTreeClick(e, () => renderJSONDiff());
+  });
+  
+  jsonDiffRight.addEventListener('click', (e) => {
+    handleTreeClick(e, () => renderJSONDiff());
+  });
+  
+  // Setup sync scrolling for JSON panes
+  syncJSONScroll(jsonDiffLeft, jsonDiffRight);
+}
+
+/**
+ * Sync scroll between JSON diff panes
+ */
+function syncJSONScroll(left, right) {
+  let isSyncing = false;
+  
+  const sync = (source, target) => {
+    if (isSyncing) return;
+    isSyncing = true;
+    
+    target.scrollTop = source.scrollTop;
+    target.scrollLeft = source.scrollLeft;
+    
+    requestAnimationFrame(() => {
+      isSyncing = false;
+    });
+  };
+  
+  left.addEventListener('scroll', () => sync(left, right));
+  right.addEventListener('scroll', () => sync(right, left));
+}
+
+/**
+ * Hide header toggles (called on initial load and when going back to input)
+ */
+function hideHeaderToggles() {
+  const viewToggle = document.querySelector('.view-toggle');
+  if (viewToggle) viewToggle.classList.add('hidden');
+}
+
+/**
+ * Show header toggles based on current mode
+ */
+function showHeaderToggles() {
+  const viewToggle = document.querySelector('.view-toggle');
+  
+  // Show view toggle only in text mode (JSON mode only has split view)
+  if (viewToggle) {
+    if (currentMode === 'text') {
+      viewToggle.classList.remove('hidden');
+    } else {
+      viewToggle.classList.add('hidden');
+    }
+  }
+}
+
+/**
  * Show input section
  */
 function showInput() {
@@ -1731,6 +1945,7 @@ function showInput() {
   diffSection.classList.add('hidden');
   currentDiffPosition = -1;
   currentGroupPosition = -1;
+  hideHeaderToggles();
 }
 
 /**
@@ -1740,6 +1955,9 @@ function showDiff() {
   inputSection.classList.add('hidden');
   diffSection.classList.remove('hidden');
   diffSection.classList.add('animate-fade-in');
+  
+  // Show appropriate header toggles
+  showHeaderToggles();
 }
 
 // Initialize the app

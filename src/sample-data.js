@@ -220,3 +220,101 @@ body {
   gap: 32px;
   margin-top: 24px;
 }`;
+
+/**
+ * Sample JSON data for JSON diff demonstration
+ */
+export const sampleJSONOriginal = `{
+  "name": "text-diff",
+  "version": "1.0.0",
+  "description": "A modern text comparison tool",
+  "author": "Developer",
+  "license": "MIT",
+  "dependencies": {
+    "react": "^17.0.2",
+    "lodash": "^4.17.21",
+    "axios": "^0.24.0"
+  },
+  "devDependencies": {
+    "vite": "^3.0.0",
+    "eslint": "^8.0.0"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "test": "jest"
+  },
+  "config": {
+    "port": 3000,
+    "debug": false,
+    "features": {
+      "darkMode": true,
+      "export": true,
+      "sync": false
+    }
+  },
+  "contributors": [
+    {
+      "name": "John Doe",
+      "email": "john@example.com"
+    },
+    {
+      "name": "Jane Smith",
+      "email": "jane@example.com"
+    }
+  ]
+}`;
+
+export const sampleJSONModified = `{
+  "name": "text-diff",
+  "version": "2.0.0",
+  "description": "A powerful text and JSON comparison tool",
+  "author": "Development Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/example/text-diff"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "lodash": "^4.17.21",
+    "axios": "^1.4.0",
+    "zustand": "^4.3.0"
+  },
+  "devDependencies": {
+    "vite": "^4.0.0",
+    "eslint": "^8.40.0",
+    "typescript": "^5.0.0"
+  },
+  "scripts": {
+    "dev": "vite --host",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "lint": "eslint src"
+  },
+  "config": {
+    "port": 5173,
+    "debug": true,
+    "features": {
+      "darkMode": true,
+      "export": true,
+      "sync": true,
+      "jsonDiff": true
+    }
+  },
+  "contributors": [
+    {
+      "name": "John Doe",
+      "email": "john.doe@example.com",
+      "role": "Lead Developer"
+    },
+    {
+      "name": "Jane Smith",
+      "email": "jane@example.com"
+    },
+    {
+      "name": "Bob Johnson",
+      "email": "bob@example.com"
+    }
+  ]
+}`;

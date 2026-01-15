@@ -21,6 +21,7 @@
           </div>
         </div>
         <div class="header-center">
+          <!-- View Toggle (Split/Unified) - only shown in text diff mode -->
           <div class="view-toggle">
             <button class="view-btn active" data-view="split">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -182,6 +183,13 @@
             </div>
             
             <div class="stats-right">
+              <!-- Show Only Changes Toggle (for JSON mode) -->
+              <label class="toggle-switch hidden" id="showChangesToggle" title="Show only changed values">
+                <input type="checkbox" id="showOnlyChanges">
+                <span class="toggle-slider"></span>
+                <span class="toggle-label">Changes only</span>
+              </label>
+              
               <button class="btn-back" id="backBtn">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <line x1="19" y1="12" x2="5" y2="12"/>
@@ -210,6 +218,19 @@
             <!-- Unified View -->
             <div class="unified-view hidden" id="unifiedView">
               <div class="unified-content" id="unifiedContent"></div>
+            </div>
+            
+            <!-- JSON Diff View -->
+            <div class="json-diff-view hidden" id="jsonDiffView">
+              <div class="json-diff-pane left-pane">
+                <div class="pane-header">Original</div>
+                <div class="json-diff-content" id="jsonDiffLeft"></div>
+              </div>
+              <div class="json-diff-gutter" id="jsonDiffGutter"></div>
+              <div class="json-diff-pane right-pane">
+                <div class="pane-header">Modified</div>
+                <div class="json-diff-content" id="jsonDiffRight"></div>
+              </div>
             </div>
           </div>
           
