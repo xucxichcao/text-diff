@@ -199,28 +199,71 @@ function compareObjects(oldObj, newObj, path) {
 
 /**
  * Compare two arrays
- * @param {array} oldArr 
- * @param {array} newArr 
- * @param {string} path 
+ * @param {array} oldArr
+ * @param {array} newArr
+ * @param {string} path
  * @returns {DiffNode}
  */
 function compareArrays(oldArr, newArr, path) {
-  const maxLen = Math.max(oldArr.length, newArr.length);
+  const oldLen = oldArr.length;
+  const newLen = newArr.length;
+  const maxLen = Math.max(oldLen, newLen);
+
   const children = [];
   let hasChanges = false;
-  
+
+  // Handle different lengths: mark indices beyond the shorter array as added/removed
   for (let i = 0; i < maxLen; i++) {
     const childPath = `${path}[${i}]`;
-    const child = compareJSON(oldArr[i], newArr[i], childPath);
-    
+    const oldVal = i < oldLen ? oldArr[i] : undefined;
+    const newVal = i < newLen ? newArr[i] : undefined;
+
+    let child;
+    if (i >= oldLen) {
+      // Index only exists in new array - mark as added
+      child = {
+        key: i,
+        index: i,
+        type: 'added',
+        path: childPath,
+        oldValue: undefined,
+        newValue: newVal,
+        valueType: getValueType(newVal),
+        children: newVal !== null && typeof newVal === 'object'
+          ? buildAddedTree(newVal, childPath)
+          : null
+      };
+    } else if (i >= newLen) {
+      // Index only exists in old array - mark as removed
+      child = {
+        key: i,
+        index: i,
+        type: 'removed',
+        path: childPath,
+        oldValue: oldVal,
+        newValue: undefined,
+        valueType: getValueType(oldVal),
+        children: oldVal !== null && typeof oldVal === 'object'
+          ? buildRemovedTree(oldVal, childPath)
+          : null
+      };
+    } else {
+      // Index exists in both - compare normally
+      child = compareJSON(oldVal, newVal, childPath);
+      if (child) {
+        child.key = i;
+        child.index = i;
+      }
+    }
+
     if (child) {
-      children.push({ key: i, index: i, ...child });
+      children.push(child);
       if (child.type !== 'unchanged') {
         hasChanges = true;
       }
     }
   }
-  
+
   return {
     type: hasChanges ? 'modified' : 'unchanged',
     path,
